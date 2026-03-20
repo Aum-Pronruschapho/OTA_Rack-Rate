@@ -7,22 +7,36 @@
     <style>
         body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #eef2f5; padding: 20px; color: #333; }
         .container { max-width: 1000px; margin: 0 auto; }
+        
         .header-section { background: #1a252f; color: white; padding: 25px; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); text-align: center; margin-bottom: 25px; }
         h2 { margin-top: 0; letter-spacing: 1px; color: #f1c40f; }
-        .date-picker { font-size: 18px; padding: 10px 15px; border: 2px solid #34495e; border-radius: 8px; outline: none; cursor: pointer; color: #2c3e50; font-family: inherit; margin-top: 15px; font-weight: bold; }
+        
+        /* เปลี่ยนหน้าตาช่องเลือกให้เป็น Dropdown */
+        .date-dropdown { font-size: 18px; padding: 12px 20px; border: 2px solid #f1c40f; border-radius: 8px; outline: none; cursor: pointer; color: #2c3e50; font-family: inherit; margin-top: 15px; font-weight: bold; background-color: white; width: 100%; max-width: 300px; }
+        .date-dropdown:focus { border-color: #e67e22; box-shadow: 0 0 8px rgba(241, 196, 15, 0.5); }
+
         .cards-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 20px; }
         .card { background: white; border-radius: 12px; padding: 25px; box-shadow: 0 4px 10px rgba(0,0,0,0.08); border-top: 8px solid #e67e22; transition: transform 0.2s; display: flex; flex-direction: column; }
+        .card:hover { transform: translateY(-5px); box-shadow: 0 8px 20px rgba(0,0,0,0.12); }
+        
+        /* Column 4: ประเภทห้อง */
         .room-type { font-size: 22px; font-weight: bold; color: #2c3e50; margin-bottom: 15px; text-align: center; border-bottom: 2px dashed #ecf0f1; padding-bottom: 10px; }
+        
+        /* Column 14: OTA Rate (เด่นที่สุด) */
         .main-price-box { text-align: center; margin: 15px 0; padding: 15px 0; background-color: #fff9f5; border-radius: 8px; border: 1px solid #ffe0b2; }
         .price-label { font-size: 14px; color: #e67e22; text-transform: uppercase; font-weight: bold; letter-spacing: 1px; margin-bottom: 5px; }
         .price-massive { font-size: 56px; font-weight: 900; color: #d35400; line-height: 1; text-shadow: 1px 1px 2px rgba(0,0,0,0.05); }
+        
+        /* Column 10 และ 9 */
         .secondary-info { display: flex; justify-content: space-between; align-items: center; margin-top: 15px; padding-top: 15px; border-top: 1px solid #ecf0f1; }
         .rack-rate { font-size: 16px; color: #7f8c8d; }
         .rack-rate b { color: #34495e; font-size: 18px; }
+        
         .available { font-size: 15px; font-weight: bold; padding: 6px 12px; border-radius: 6px; background-color: #e8f5e9; color: #2e7d32; border: 1px solid #c8e6c9; }
         .stop-sell { background-color: #ffebee; color: #c62828; border-color: #ffcdd2; }
+
         .loading { text-align: center; font-size: 18px; color: #666; grid-column: 1 / -1; }
-        .error-box { text-align: left; font-size: 16px; color: #c62828; grid-column: 1 / -1; background: #ffebee; padding: 20px; border-radius: 8px; border: 1px solid #ef9a9a; }
+        .error-box { text-align: center; font-size: 16px; color: #c62828; grid-column: 1 / -1; background: #ffebee; padding: 20px; border-radius: 8px; font-weight: bold; border: 1px solid #ef9a9a; }
     </style>
 </head>
 <body>
@@ -30,7 +44,11 @@
     <div class="header-section">
         <h2>🚀 OTA Rack Rate Dashboard</h2>
         <p style="margin:0; color:#bdc3c7;">อัปเดตราคา Channel Manager</p>
-        <input type="date" id="dateSelector" class="date-picker">
+        
+        <select id="dateSelector" class="date-dropdown">
+            <option value="">กำลังโหลดวันที่...</option>
+        </select>
+        
     </div>
     
     <div id="cardsContainer" class="cards-grid">
@@ -40,6 +58,7 @@
 
 <script>
     const sheetCsvUrl = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vQksmZ8EHWQzPN459EmnppV8nMgBphWZRvHX8uNDxb1UHPpGNQB-LPHM4Giha7CxhVaNCKaXX8vsxG3/pub?gid=1864535639&single=true&output=csv';
+    
     let hotelData = [];
 
     function parseCSVRow(text) {
@@ -58,36 +77,16 @@
 
     function renderCards(selectedDate) {
         const container = document.getElementById('cardsContainer');
-        if (!selectedDate) return;
+        if (!selectedDate) {
+            container.innerHTML = '';
+            return;
+        }
         
-        const [year, month, day] = selectedDate.split('-');
-        const thaiYear = parseInt(year) + 543; // แปลงเป็น พ.ศ.
-        
-        // รวบรวมรูปแบบวันที่ที่เป็นไปได้ทั้งหมด (ทั้ง ค.ศ. และ พ.ศ.)
-        const possibleDates = [
-            `${day}/${month}/${year}`,
-            `${parseInt(month)}/${parseInt(day)}/${year}`,
-            `${parseInt(day)}/${parseInt(month)}/${year}`,
-            `${day}/${month}/${thaiYear}`,
-            `${parseInt(month)}/${parseInt(day)}/${thaiYear}`,
-            `${parseInt(day)}/${parseInt(month)}/${thaiYear}`,
-            selectedDate
-        ];
-        
-        const filteredData = hotelData.filter(item => possibleDates.includes(item.date));
+        // ค้นหาแบบจับคู่ String เป๊ะๆ เพราะข้อมูลมาจากแหล่งเดียวกันแล้ว
+        const filteredData = hotelData.filter(item => item.date === selectedDate);
 
         if (filteredData.length === 0) {
-            // โหมดนักสืบ: ดึงตัวอย่างวันที่ในระบบมาโชว์ 5 อันแรก
-            let sampleDates = [...new Set(hotelData.map(d => d.date))].filter(d => d !== '').slice(0, 5).join(', ');
-            
-            container.innerHTML = `
-                <div class="error-box">
-                    <b>⚠️ ไม่พบข้อมูลของวันที่เลือก</b><br><br>
-                    ระบบพยายามค้นหาวันที่เหล่านี้: ${possibleDates.join(' หรือ ')}<br><br>
-                    <b>แต่ข้อมูลวันที่ที่อ่านได้จากไฟล์ Google Sheets ของคุณคือรูปแบบนี้:</b><br>
-                    <span style="color:#2c3e50; font-size:18px;">👉 ${sampleDates || 'ไม่พบข้อมูลในคอลัมน์ A'}</span><br><br>
-                    <i>*รบกวนแคปหน้าจอนี้ส่งให้ผมดูหน่อยครับ จะได้ปรับโค้ดให้ตรงกับรูปแบบของระบบพอดีเป๊ะครับ!</i>
-                </div>`;
+            container.innerHTML = `<div class="error-box">ไม่พบข้อมูลของวันที่เลือก</div>`;
             return;
         }
 
@@ -107,10 +106,12 @@
             html += `
                 <div class="card">
                     <div class="room-type">${room.col4_RoomType}</div>
+                    
                     <div class="main-price-box">
                         <div class="price-label">OTA Sell Rate</div>
                         <div class="price-massive">${displayOtaRate}</div>
                     </div>
+                    
                     <div class="secondary-info">
                         <div class="rack-rate">Rack Rate: <b>${displayRackRate}</b></div>
                         <div class="${availClass}">${availText}</div>
@@ -123,19 +124,59 @@
 
     fetch(sheetCsvUrl)
         .then(response => {
-            if (!response.ok) throw new Error("ดึงข้อมูลไม่สำเร็จ");
+            if (!response.ok) throw new Error("ไม่สามารถดึงข้อมูลได้");
             return response.text();
         })
         .then(csvText => {
             const rows = csvText.split('\n');
+            
+            // อ่านข้อมูลใส่ Array
             for (let i = 1; i < rows.length; i++) {
                 if (rows[i].trim() === '') continue;
                 
                 const cols = parseCSVRow(rows[i]);
                 if (cols.length >= 4) { 
                     hotelData.push({
-                        date: cols[0] ? cols[0] : '',                                 
-                        col4_RoomType: cols[3] ? cols[3] : 'ไม่ระบุประเภท',              
-                        col9_Available: parseInt(cols[8] ? cols[8] : "0", 10),        
-                        col10_RackRate: cols[9] ? cols[9] : '',                       
-                        col14_OtaRate:
+                        date: cols[0] ? cols[0].trim() : '',                          // Column 1 
+                        col4_RoomType: cols[3] ? cols[3].trim() : 'ไม่ระบุประเภท',       // Column 4 
+                        col9_Available: parseInt(cols[8] ? cols[8].trim() : "0", 10), // Column 9 
+                        col10_RackRate: cols[9] ? cols[9].trim() : '',                // Column 10 
+                        col14_OtaRate: cols[13] ? cols[13].trim() : ''                // Column 14 
+                    });
+                }
+            }
+            
+            // ดึงรายชื่อ "วันที่" ทั้งหมดที่มีในระบบมาทำเป็น Dropdown
+            const uniqueDates = [...new Set(hotelData.map(item => item.date))].filter(d => d !== '');
+            
+            const dateSelect = document.getElementById('dateSelector');
+            
+            if (uniqueDates.length > 0) {
+                // สร้างตัวเลือกให้ Dropdown
+                let optionsHtml = '<option value="">-- เลือกวันที่ --</option>';
+                uniqueDates.forEach(dateStr => {
+                    optionsHtml += `<option value="${dateStr}">${dateStr}</option>`;
+                });
+                dateSelect.innerHTML = optionsHtml;
+                
+                // เลือกวันที่แรกสุดที่มีข้อมูลให้โชว์เป็นค่าเริ่มต้น
+                dateSelect.value = uniqueDates[0];
+                renderCards(uniqueDates[0]);
+                
+            } else {
+                dateSelect.innerHTML = '<option value="">ไม่พบข้อมูลวันที่ในระบบ</option>';
+                document.getElementById('cardsContainer').innerHTML = `<div class="error-box">ไม่พบข้อมูลในไฟล์ (ชีตอาจจะว่างเปล่า)</div>`;
+            }
+            
+            // เมื่อกดเปลี่ยนวันที่ใน Dropdown ให้โชว์การ์ดใหม่
+            dateSelect.addEventListener('change', (e) => {
+                renderCards(e.target.value);
+            });
+            
+        })
+        .catch(error => {
+            document.getElementById('cardsContainer').innerHTML = `<div class="error-box">เกิดข้อผิดพลาด: ${error.message}</div>`;
+        });
+</script>
+</body>
+</html>

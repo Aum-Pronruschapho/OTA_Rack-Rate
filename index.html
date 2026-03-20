@@ -21,7 +21,7 @@
         .room-type { font-size: 22px; font-weight: bold; color: #2c3e50; margin-bottom: 15px; text-align: center; border-bottom: 2px dashed #ecf0f1; padding-bottom: 10px; }
         
         /* Column 14: OTA Rate (ทำให้เด่นที่สุด) */
-        .main-price-box { text-align: center; margin: 15px 0; padding: 15px 0; background-color: #fff9f5; border-radius: 8px; }
+        .main-price-box { text-align: center; margin: 15px 0; padding: 15px 0; background-color: #fff9f5; border-radius: 8px; border: 1px solid #ffe0b2; }
         .price-label { font-size: 14px; color: #e67e22; text-transform: uppercase; font-weight: bold; letter-spacing: 1px; margin-bottom: 5px; }
         .price-massive { font-size: 56px; font-weight: 900; color: #d35400; line-height: 1; text-shadow: 1px 1px 2px rgba(0,0,0,0.05); }
         
@@ -34,21 +34,158 @@
         .stop-sell { background-color: #ffebee; color: #c62828; border-color: #ffcdd2; }
 
         .loading { text-align: center; font-size: 18px; color: #666; grid-column: 1 / -1; }
-        .error-box { text-align: center; font-size: 18px; color: #c62828; grid-column: 1 / -1; background: #ffebee; padding: 20px; border-radius: 8px; font-weight: bold; }
+        .error-box { text-align: center; font-size: 16px; color: #c62828; grid-column: 1 / -1; background: #ffebee; padding: 20px; border-radius: 8px; font-weight: bold; border: 1px solid #ef9a9a; }
     </style>
 </head>
 <body>
 <div class="container">
     <div class="header-section">
         <h2>🚀 OTA Rack Rate Dashboard</h2>
-        <p style="margin:0; color:#bdc3c7;">อัปเดต Channel Manager (เน้น Column N)</p>
+        <p style="margin:0; color:#bdc3c7;">อัปเดตราคา Channel Manager</p>
         <input type="date" id="dateSelector" class="date-picker">
     </div>
     
     <div id="cardsContainer" class="cards-grid">
-        <div class="loading">กำลังดึงข้อมูล...</div>
+        <div class="loading">กำลังดึงข้อมูล... กรุณารอสักครู่</div>
     </div>
 </div>
 
 <script>
-    const sheetCsvUrl = '
+    // ⚠️ ฝังลิงก์ CSV ที่ถูกต้องให้แล้ว ห้ามแก้เป็นลิงก์ที่มีคำว่า /edit เด็ดขาดนะครับ
+    const sheetCsvUrl = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vQksmZ8EHWQzPN459EmnppV8nMgBphWZRvHX8uNDxb1UHPpGNQB-LPHM4Giha7CxhVaNCKaXX8vsxG3/pub?gid=1864535639&single=true&output=csv';
+    
+    let hotelData = [];
+
+    // ฟังก์ชันอ่าน CSV แบบแก้ปัญหาคอลัมน์แหว่ง
+    function parseCSVRow(text) {
+        let result = [];
+        let current = '';
+        let inQuotes = false;
+        for (let i = 0; i < text.length; i++) {
+            let char = text[i];
+            if (char === '"') {
+                inQuotes = !inQuotes;
+            } else if (char === ',' && !inQuotes) {
+                result.push(current.trim());
+                current = '';
+            } else {
+                current += char;
+            }
+        }
+        result.push(current.trim());
+        return result;
+    }
+
+    function renderCards(selectedDate) {
+        try {
+            const container = document.getElementById('cardsContainer');
+            if (!selectedDate) return;
+            
+            const [year, month, day] = selectedDate.split('-');
+            const format1 = `${day}/${month}/${year}`;
+            const format2 = `${parseInt(month)}/${parseInt(day)}/${year}`;
+            const format3 = `${parseInt(day)}/${parseInt(month)}/${year}`;
+            
+            const filteredData = hotelData.filter(item => 
+                item.date === format1 || item.date === format2 || item.date === format3 || item.date === selectedDate
+            );
+
+            if (filteredData.length === 0) {
+                container.innerHTML = `<div class="error-box">ไม่พบข้อมูลของวันที่เลือก <br>(หากแน่ใจว่าใส่วันที่ถูก อาจเป็นเพราะใน Sheets ยังไม่ได้กรอกข้อมูลของวันนี้ครับ)</div>`;
+                return;
+            }
+
+            let html = '';
+            filteredData.forEach(room => {
+                let availClass = 'available';
+                let availText = `เหลือ: ${room.col9_Available} ห้อง`;
+                
+                if(room.col9_Available <= 0) {
+                    availClass = 'available stop-sell';
+                    availText = '⚠️ ปิดขาย (Full)';
+                }
+
+                // จัดการค่าว่าง
+                let displayOtaRate = (room.col14_OtaRate && room.col14_OtaRate !== '') ? room.col14_OtaRate : '-';
+                let displayRackRate = (room.col10_RackRate && room.col10_RackRate !== '') ? room.col10_RackRate : '-';
+
+                html += `
+                    <div class="card">
+                        <div class="room-type">${room.col4_RoomType}</div>
+                        
+                        <div class="main-price-box">
+                            <div class="price-label">OTA Sell Rate</div>
+                            <div class="price-massive">${displayOtaRate}</div>
+                        </div>
+                        
+                        <div class="secondary-info">
+                            <div class="rack-rate">Rack Rate: <b>${displayRackRate}</b></div>
+                            <div class="${availClass}">${availText}</div>
+                        </div>
+                    </div>
+                `;
+            });
+            container.innerHTML = html;
+        } catch (err) {
+            document.getElementById('cardsContainer').innerHTML = `<div class="error-box">เกิดข้อผิดพลาดในการแสดงผล: ${err.message}</div>`;
+        }
+    }
+
+    fetch(sheetCsvUrl)
+        .then(response => {
+            if (!response.ok) throw new Error("ไม่สามารถดึงข้อมูลจาก Google Sheets ได้");
+            return response.text();
+        })
+        .then(csvText => {
+            const container = document.getElementById('cardsContainer');
+            
+            // เช็กให้ชัวร์ว่าไม่ใช่หน้าเว็บ HTML (เผื่ออนาคตคุณอั้มเปลี่ยนลิงก์)
+            if (csvText.trim().toLowerCase().startsWith('<!doctype html>') || csvText.includes('<html')) {
+                container.innerHTML = `<div class="error-box"><b>เกิดข้อผิดพลาด:</b> ลิงก์ที่ใส่ไม่ใช่ไฟล์ CSV ครับ<br>โปรดใช้ลิงก์ที่ลงท้ายด้วย output=csv แทนการใช้ลิงก์ที่ก๊อปปี้จากเบราว์เซอร์โดยตรงครับ</div>`;
+                return;
+            }
+
+            try {
+                const rows = csvText.split('\n');
+                
+                for (let i = 1; i < rows.length; i++) {
+                    if (rows[i].trim() === '') continue;
+                    
+                    const cols = parseCSVRow(rows[i]);
+                    
+                    // ขอแค่มีคอลัมน์ถึงประเภทห้องก็ดึงข้อมูลมาได้เลย ไม่บังคับคอลัมน์ N
+                    if (cols.length >= 4) { 
+                        hotelData.push({
+                            date: cols[0] ? cols[0] : '',                                 // Column 1 (Index 0)
+                            col4_RoomType: cols[3] ? cols[3] : 'ไม่ระบุประเภท',              // Column 4 (Index 3)
+                            col9_Available: parseInt(cols[8] ? cols[8] : "0", 10),        // Column 9 (Index 8)
+                            col10_RackRate: cols[9] ? cols[9] : '',                       // Column 10 (Index 9)
+                            col14_OtaRate: cols[13] ? cols[13] : ''                       // Column 14 (Index 13)
+                        });
+                    }
+                }
+                
+                if (hotelData.length === 0) {
+                     container.innerHTML = `<div class="error-box">ดึงไฟล์สำเร็จ แต่ไม่พบข้อมูล (ตรวจดูว่าหน้า Calendar มีข้อมูลหรือไม่)</div>`;
+                     return;
+                }
+
+                const today = new Date().toISOString().split('T')[0];
+                const dateInput = document.getElementById('dateSelector');
+                dateInput.value = today;
+                
+                renderCards(today);
+                
+                dateInput.addEventListener('change', (e) => {
+                    renderCards(e.target.value);
+                });
+            } catch (err) {
+                document.getElementById('cardsContainer').innerHTML = `<div class="error-box">ระบบประมวลผลข้อมูลขัดข้อง: ${err.message}</div>`;
+            }
+        })
+        .catch(error => {
+            document.getElementById('cardsContainer').innerHTML = `<div class="error-box">เชื่อมต่ออินเทอร์เน็ตหรือลิงก์มีปัญหา: ${error.message}</div>`;
+        });
+</script>
+</body>
+</html>

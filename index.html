@@ -14,34 +14,33 @@
         .date-picker:focus { border-color: #3498db; }
 
         .cards-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 20px; }
-        .card { background: white; border-radius: 12px; padding: 25px 20px; box-shadow: 0 4px 10px rgba(0,0,0,0.08); border-top: 8px solid #2980b9; transition: transform 0.2s; text-align: center; display: flex; flex-direction: column; justify-content: space-between; }
+        .card { background: white; border-radius: 12px; padding: 25px 20px; box-shadow: 0 4px 10px rgba(0,0,0,0.08); border-top: 8px solid #d35400; transition: transform 0.2s; text-align: center; display: flex; flex-direction: column; justify-content: space-between; }
         .card:hover { transform: translateY(-5px); box-shadow: 0 8px 20px rgba(0,0,0,0.12); }
         
-        /* ดีไซน์เน้นราคา OTA ให้เด่นที่สุด */
-        .price-label { font-size: 14px; color: #7f8c8d; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 5px; font-weight: bold; }
-        .price { font-size: 42px; font-weight: 900; color: #2980b9; margin: 0 0 15px 0; text-shadow: 1px 1px 2px rgba(0,0,0,0.05); }
+        .price-label { font-size: 15px; color: #7f8c8d; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 5px; font-weight: bold; }
         
-        /* ประเภทห้องพักลดความเด่นลงมานิดนึง */
+        /* เน้นราคา OTA ให้ใหญ่และเด่นที่สุด! */
+        .price { font-size: 52px; font-weight: 900; color: #d35400; margin: 0 0 15px 0; text-shadow: 2px 2px 4px rgba(0,0,0,0.05); }
+        
         .room-type { font-size: 18px; font-weight: bold; margin: 0 0 15px 0; color: #34495e; padding-bottom: 10px; border-bottom: 1px dashed #bdc3c7; }
         
-        /* ข้อมูล Allotment */
         .available { font-size: 15px; font-weight: bold; padding: 8px 12px; border-radius: 6px; display: inline-block; background-color: #f8f9fa; color: #7f8c8d; border: 1px solid #dee2e6; }
         .stop-sell { background-color: #ffebee; color: #c62828; border-color: #ffcdd2; }
 
         .loading { text-align: center; font-size: 18px; color: #666; grid-column: 1 / -1; }
-        .no-data { text-align: center; font-size: 18px; color: #e74c3c; grid-column: 1 / -1; background: white; padding: 20px; border-radius: 8px; border-left: 6px solid #e74c3c; }
+        .error-box { text-align: center; font-size: 18px; color: #c62828; grid-column: 1 / -1; background: #ffebee; padding: 20px; border-radius: 8px; border: 1px solid #ef9a9a; font-weight: bold; }
     </style>
 </head>
 <body>
 <div class="container">
     <div class="header-section">
         <h2>🚀 OTA Rack Rate Dashboard</h2>
-        <p style="margin:0; color:#bdc3c7;">เลือกวันที่ต้องการอัปเดตราคาบน Channel Manager</p>
+        <p style="margin:0; color:#bdc3c7;">อัปเดตราคา Channel Manager (ข้อมูลจาก Column N)</p>
         <input type="date" id="dateSelector" class="date-picker">
     </div>
     
     <div id="cardsContainer" class="cards-grid">
-        <div class="loading">กำลังดึงข้อมูล Rate...</div>
+        <div class="loading">กำลังดึงข้อมูล... กรุณารอสักครู่</div>
     </div>
 </div>
 
@@ -49,83 +48,100 @@
     const sheetCsvUrl = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vQksmZ8EHWQzPN459EmnppV8nMgBphWZRvHX8uNDxb1UHPpGNQB-LPHM4Giha7CxhVaNCKaXX8vsxG3/pub?gid=1864535639&single=true&output=csv';
     let hotelData = [];
 
-    // ฟังก์ชันแยก CSV แบบใหม่ แม่นยำ 100% ไม่พลาดแม้คอลัมน์จะว่าง
-    function parseCSVRow(str) {
+    // ฟังก์ชันอ่าน CSV แบบไม่สนใจคอลัมน์แหว่ง
+    function parseCSVRow(text) {
         let result = [];
-        let cell = '';
+        let current = '';
         let inQuotes = false;
-        for (let i = 0; i < str.length; i++) {
-            let char = str[i];
-            if (char === '"' && str[i+1] === '"') {
-                cell += '"';
-                i++;
-            } else if (char === '"') {
+        for (let i = 0; i < text.length; i++) {
+            let char = text[i];
+            if (char === '"') {
                 inQuotes = !inQuotes;
             } else if (char === ',' && !inQuotes) {
-                result.push(cell.trim());
-                cell = '';
+                result.push(current.trim());
+                current = '';
             } else {
-                cell += char;
+                current += char;
             }
         }
-        result.push(cell.trim());
+        result.push(current.trim());
         return result;
     }
 
     function renderCards(selectedDate) {
-        const container = document.getElementById('cardsContainer');
-        const [year, month, day] = selectedDate.split('-');
-        
-        const format1 = `${day}/${month}/${year}`;
-        const format2 = `${parseInt(month)}/${parseInt(day)}/${year}`;
-        const format3 = `${parseInt(day)}/${parseInt(month)}/${year}`;
-        
-        const filteredData = hotelData.filter(item => 
-            item.date === format1 || item.date === format2 || item.date === format3 || item.date === selectedDate
-        );
-
-        if (filteredData.length === 0) {
-            container.innerHTML = `<div class="no-data">ไม่พบข้อมูลสำหรับวันที่เลือก โปรดตรวจสอบใน Google Sheets</div>`;
-            return;
-        }
-
-        let html = '';
-        filteredData.forEach(room => {
-            let availClass = 'available';
-            let availText = `Allotment: ${room.available} ห้อง`;
+        try {
+            const container = document.getElementById('cardsContainer');
+            if (!selectedDate) return;
             
-            if(room.available <= 0) {
-                availClass = 'available stop-sell';
-                availText = '⚠️ ปิดขาย (Stop Sell)';
+            const [year, month, day] = selectedDate.split('-');
+            const format1 = `${day}/${month}/${year}`;
+            const format2 = `${parseInt(month)}/${parseInt(day)}/${year}`;
+            const format3 = `${parseInt(day)}/${parseInt(month)}/${year}`;
+            
+            const filteredData = hotelData.filter(item => 
+                item.date === format1 || item.date === format2 || item.date === format3 || item.date === selectedDate
+            );
+
+            if (filteredData.length === 0) {
+                container.innerHTML = `<div class="error-box">ไม่พบข้อมูลสำหรับวันที่ ${format1} <br>(ห้องอาจไม่มีในระบบ หรือยังไม่ได้อัปเดตข้อมูล)</div>`;
+                return;
             }
 
-            html += `
-                <div class="card">
-                    <div class="room-type">${room.type}</div>
-                    <div>
-                        <div class="price-label">OTA Sell Rate</div>
-                        <div class="price">${room.otaRate}</div>
+            let html = '';
+            filteredData.forEach(room => {
+                let availClass = 'available';
+                let availText = `Allotment: ${room.available} ห้อง`;
+                
+                if(room.available <= 0) {
+                    availClass = 'available stop-sell';
+                    availText = '⚠️ ปิดขาย (Stop Sell)';
+                }
+
+                // เช็กให้ชัวร์ว่าถ้าราคาเป็นค่าว่าง ให้โชว์คำว่า "ยังไม่ระบุ"
+                let displayPrice = (room.otaRate && room.otaRate !== '') ? room.otaRate : 'ยังไม่ระบุ';
+
+                html += `
+                    <div class="card">
+                        <div class="room-type">${room.type}</div>
+                        <div>
+                            <div class="price-label">OTA Sell Rate</div>
+                            <div class="price">${displayPrice}</div>
+                        </div>
+                        <div class="${availClass}">${availText}</div>
                     </div>
-                    <div class="${availClass}">${availText}</div>
-                </div>
-            `;
-        });
-        container.innerHTML = html;
+                `;
+            });
+            container.innerHTML = html;
+        } catch (err) {
+            document.getElementById('cardsContainer').innerHTML = `<div class="error-box">เกิดข้อผิดพลาดในการแสดงผล: ${err.message}</div>`;
+        }
     }
 
     fetch(sheetCsvUrl)
-        .then(response => response.text())
+        .then(response => {
+            if (!response.ok) throw new Error("ดึงข้อมูลจาก Google Sheets ไม่สำเร็จ");
+            return response.text();
+        })
         .then(csvText => {
-            const rows = csvText.split('\n');
-            for (let i = 1; i < rows.length; i++) {
-                if (rows[i].trim() === '') continue;
+            try {
+                const rows = csvText.split('\n');
                 
-                const cols = parseCSVRow(rows[i]);
+                // เริ่มอ่านข้อมูล (ข้ามหัวตารางไป 1 บรรทัด)
+                for (let i = 1; i < rows.length; i++) {
+                    if (rows[i].trim() === '') continue;
+                    
+                    const cols = parseCSVRow(rows[i]);
+                    
+                    // ขอแค่มีคอลัมน์ถึงประเภทห้องก็พอ ไม่บังคับว่าต้องครบ 14 คอลัมน์
+                    if (cols.length >= 4) { 
+                        hotelData.push({
+                            date: cols[0] ? cols[0] : '',                           
+                            type: cols[3] ? cols[3] : '',                           
+                            available: parseInt(cols[8] ? cols[8] : "0", 10),
+                            // ดึงคอลัมน์ N (Index 13) ถ้าไม่มีจะใส่ค่าว่างไว้
+                            otaRate: cols[13] ? cols[13] : ''                      
+                        });
+                    }
+                }
                 
-                // ตรวจสอบว่ามีข้อมูลถึงคอลัมน์ N (Index 13)
-                if (cols.length >= 14) {
-                    hotelData.push({
-                        date: cols[0] ? cols[0] : '',                           // คอลัมน์ A
-                        type: cols[3] ? cols[3] : '',                           // คอลัมน์ D
-                        available: parseInt(cols[8] ? cols[8] : "0", 10),       // คอลัมน์ I (Left)
-                        otaRate: cols
+                // ตั้งค่าป
